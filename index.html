@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chat Ruangan</title>
+<style>
+:root{--bg:#f6f7f9;--surface:#fff;--text:#1b1f24;--muted:#6b7380;--accent:#2f6fed;--on:#fff;--theirs:#e9ecf1;--border:#dde1e8;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#14161a;--surface:#1d2025;--text:#eceff3;--muted:#98a1ae;--accent:#4d7df0;--theirs:#2a2e35;--border:#31363e;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{height:100%;display:flex;flex-direction:column;max-width:640px;margin:0 auto}
+.card{margin:auto;width:calc(100% - 32px);max-width:400px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px}
+h1{font-size:22px;margin:0 0 4px}.sub{color:var(--muted);margin:0 0 14px;font-size:14px}
+label{display:block;font-size:13px;color:var(--muted);margin:12px 0 4px}
+input{width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font:inherit}
+input.code{text-transform:uppercase;letter-spacing:.2em;text-align:center;font-weight:600}
+button{font:inherit;border:0;border-radius:10px;padding:12px 16px;cursor:pointer;background:var(--accent);color:var(--on);font-weight:600}
+button.g{background:transparent;color:var(--accent);padding:8px 10px}
+.row{display:flex;gap:8px;margin-top:16px}.row button{flex:1}
+.err{color:#d33;font-size:13px;min-height:18px;margin-top:8px}
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top));background:var(--surface);border-bottom:1px solid var(--border)}
+header b{letter-spacing:.15em}header small{color:var(--muted);display:block;font-size:12px}
+#msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+.m{max-width:80%;padding:8px 12px;border-radius:14px;background:var(--theirs);align-self:flex-start;overflow-wrap:anywhere}
+.m.me{align-self:flex-end;background:var(--accent);color:var(--on)}
+.n{font-size:12px;opacity:.7;margin-bottom:2px}.t{font-size:11px;opacity:.6;text-align:right;margin-top:2px}
+.empty{color:var(--muted);text-align:center;margin:auto;font-size:14px}
+form{display:flex;gap:8px;padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--border)}
+form input{flex:1}
+#st{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+var app=document.getElementById('app'),es=null,room=null,name='',seen={};
+var cid;try{cid=localStorage.getItem('cid');if(!cid){cid=Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem('cid',cid)}name=localStorage.getItem('name')||''}catch(e){cid=Math.random().toString(36).slice(2)}
+function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function clean(c){return(c||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8)}
+function gen(){var a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',s='';for(var i=0;i<6;i++)s+=a[Math.floor(Math.random()*a.length)];return s}
+
+function join(pre){
+  if(es){es.close();es=null}room=null;app.textContent='';
+  var c=el('div','card');
+  c.appendChild(el('h1',null,'Chat Ruangan'));
+  c.appendChild(el('p','sub','Masuk dengan kode ruangan. Bagikan kodenya ke teman agar bisa mengobrol dari mana saja.'));
+  c.appendChild(el('label',null,'Nama kamu'));
+  var n=el('input');n.maxLength=24;n.value=name;n.placeholder='mis. Budi';c.appendChild(n);
+  c.appendChild(el('label',null,'Kode ruangan'));
+  var k=el('input','code');k.maxLength=8;k.value=pre||'';k.placeholder='KODE';c.appendChild(k);
+  var er=el('div','err');c.appendChild(er);
+  var r=el('div','row'),j=el('button',null,'Masuk'),b=el('button','g','Buat ruangan baru');
+  r.appendChild(j);r.appendChild(b);c.appendChild(r);app.appendChild(c);
+  function go(code){
+    var nm=n.value.trim();code=clean(code);
+    if(!nm){er.textContent='Isi nama dulu.';return}
+    if(code.length<4){er.textContent='Kode minimal 4 karakter.';return}
+    name=nm;try{localStorage.setItem('name',name)}catch(e){}
+    open(code);
+  }
+  j.onclick=function(){go(k.value)};b.onclick=function(){go(gen())};
+  k.onkeydown=function(e){if(e.key==='Enter')go(k.value)};
+}
+
+function open(code){
+  room=code;seen={};location.hash=code;app.textContent='';
+  var hd=el('header'),l=el('div');
+  l.appendChild(el('b',null,code));var st=el('small',null,'Menyambung…');st.id='st';l.appendChild(st);
+  hd.appendChild(l);
+  var rb=el('div'),cp=el('button','g','Salin tautan'),lv=el('button','g','Keluar');
+  cp.onclick=function(){
+    var u=location.href;
+    if(navigator.clipboard)navigator.clipboard.writeText(u).then(function(){cp.textContent='Tersalin'},function(){prompt('Salin tautan:',u)});
+    else prompt('Salin tautan:',u);
+    setTimeout(function(){cp.textContent='Salin tautan'},1500);
+  };
+  lv.onclick=function(){history.replaceState(null,'',location.pathname);join('')};
+  rb.appendChild(cp);rb.appendChild(lv);hd.appendChild(rb);
+  var box=el('div');box.id='msgs';
+  var fm=el('form'),inp=el('input');inp.placeholder='Tulis pesan…';inp.maxLength=1000;inp.autocomplete='off';
+  var sb=el('button',null,'Kirim');sb.type='submit';
+  fm.appendChild(inp);fm.appendChild(sb);
+  app.appendChild(hd);app.appendChild(box);app.appendChild(fm);
+
+  function add(m){
+    if(seen[m.id])return;seen[m.id]=1;
+    var e=box.querySelector('.empty');if(e)e.remove();
+    var mine=m.cid===cid,d=el('div','m'+(mine?' me':''));
+    if(!mine)d.appendChild(el('div','n',m.name));
+    d.appendChild(el('div',null,m.text));
+    d.appendChild(el('div','t',new Date(m.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})));
+    box.appendChild(d);box.scrollTop=box.scrollHeight;
+  }
+  es=new EventSource('/events?room='+encodeURIComponent(code));
+  es.addEventListener('init',function(ev){
+    st.textContent='Terhubung';box.textContent='';seen={};
+    var a=JSON.parse(ev.data);
+    if(!a.length)box.appendChild(el('div','empty','Belum ada pesan. Mulai obrolan!'));
+    a.forEach(add);
+  });
+  es.addEventListener('msg',function(ev){add(JSON.parse(ev.data))});
+  es.onerror=function(){st.textContent='Terputus, menyambung ulang…'};
+  fm.onsubmit=function(ev){
+    ev.preventDefault();var t=inp.value.trim();if(!t)return;inp.value='';
+    fetch('/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:code,name:name,text:t,cid:cid})})
+      .then(function(r){if(!r.ok)throw 0}).catch(function(){inp.value=t;st.textContent='Gagal kirim, coba lagi'});
+  };
+  inp.focus();
+}
+var h=clean(location.hash.slice(1));
+if(h.length>=4&&name)open(h);else join(h);
+</script>
+</body>
+</html>
